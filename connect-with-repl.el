@@ -19,7 +19,7 @@
 ;;; utility
 (defmacro cnw-repl-available-when (&rest body)
   `(if %connect-with-repl-mutex%
-       (warn "associated repl is busy.")
+       (message "associated repl is busy. ignored.")
        (progn ,@body)))
 
 (defmacro cnw-with-mutex (&rest body)
@@ -46,25 +46,25 @@
 (defun connect-with-repl-send (proc string)
   (comint-simple-send proc string))
 
-(defun connect-with-repl-internal (input-func &optional timeout)
+(defun connect-with-repl-internal (filters proc message &optional timeout)
   (cnw-repl-available-when
-   (cnw-with-repl (list (lambda (line)
-			  (push line connect-with-repl-tmp-storage)
-			  (when (string-match "gosh>" line)
-			    (setq %connect-with-repl-running-yetp% nil))
-			  line))
-		  (funcall input-func)
-		  (cond (timeout
-			 (while %connect-with-repl-running-yetp%
-			   (unless (> timeout 0) (error "time out"))
-			   (sleep-for 0 connect-with-repl-wait-time)
-			   (decf timeout 100)))
-			(t
-			 (while %connect-with-repl-running-yetp%
-			   (sleep-for 0 connect-with-repl-wait-time))))
-		  (mapconcat 'identity (nreverse connect-with-repl-tmp-storage) "\n"))))
+   (cnw-with-repl filters
+		  (connect-with-repl-send proc message)
+		  (if timeout
+		      (while %connect-with-repl-running-yetp%
+			(unless (> timeout 0) (error "time out"))
+			(sleep-for 0 connect-with-repl-wait-time)
+			(decf timeout 100))
+		      (while %connect-with-repl-running-yetp%
+			(sleep-for 0 connect-with-repl-wait-time)))
+		  (setq connect-with-repl-tmp-storage
+		  (mapconcat 'identity (nreverse connect-with-repl-tmp-storage) "")))))
+  
+(defun connect-with-repl (message &optional proc timeout filters) ;timeout is msec
+  (let ((proc (if (functionp proc) (funcall proc) proc))
+	(filters (or filters connect-with-repl-filter-functions)))
+    (connect-with-repl-internal filters proc message timeout)))
 
 (defun connect-with-repl-cleanup-storage () (interactive)
   (setq connect-with-repl-storage nil))
 
-(connect-with-repl-internal (lambda () (connect-with-repl-send (scheme-proc) "(* 10 2)")))
