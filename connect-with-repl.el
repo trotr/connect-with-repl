@@ -15,7 +15,7 @@
   :type 'boolean
   :group 'connect-with-repl)
   
-(defvar connect-with-repl-storage-buffer-name "* CWR storage *"
+(defvar connect-with-repl-storage-buffer-name "*connect with repl storage*"
   "storage buffer name")
 (defvar connect-with-repl-storage-buffer nil
   "sotered buffer for connected repl's output") 
@@ -80,21 +80,6 @@ so gensym-string is existed at end-of-buffer in storage-buffer"
     (cnw-starting-connect proc string)
     (cnw-wait-loop timeout)
     (connect-with-repl-output-result check-p)))
-
-(defvar connect-with-repl-ansync-function-timer nil)
-(defun connect-with-repl-ansync (string proc cont &optional check-p)
-  (declare (special comint-preoutput-filter-functions))
-  (let ((comint-preoutput-filter-functions connect-with-repl-filter-functions))
-    (cnw-starting-connect proc string)))
-    (lexical-let ((cont cont)
-		  (check-p check-p))
-      (setq connect-with-repl-ansync-function-timer
-	    (run-with-idle-timer 
-	     (* 0.001 connect-with-repl-wait-time) t
-	     (lambda ()
-	       (when (cnw-repl-finished-p)
-		 (funcall cont (connect-with-repl-output-result check-p))
-		 (cancel-timer connect-with-repl-ansync-function-timer))))))))
 
 (defun connect-with-repl-send (proc string)
   (comint-simple-send proc string))
